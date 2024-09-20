@@ -1,4 +1,4 @@
-name: Run Bot
+name: Botzin dos cria
 
 on:
   workflow_dispatch:  # Allows manual runs
