@@ -15,8 +15,8 @@ partMapping = {
 }
 
 # Telegram bot config
-bot_token = os.getenv('BOT_TOKEN')
-chat_id = os.getenv('CHAT_ID')
+bot_token = os.getenv('BOT_KEY')
+chat_id = os.getenv('CHAT_KEY')
 
 
 validStores = ["pacificcentre@apple.com"]
