@@ -1,6 +1,7 @@
 name: Run Bot
 
 on:
+  workflow_dispatch:  # Allows manual runs
   schedule:
     - cron: '*/1 * * * *'  # Runs every 1 minutes
 
