@@ -49,7 +49,7 @@ def check_reservation():
             if store["storeEmail"] in validStores:
                 iterable = store["partsAvailability"]
                 for key in iterable:
-                    if iterable[key]["pickupDisplay"] != 'available':
+                    if iterable[key]["pickupDisplay"] == 'available':
                         res.append({"color": partMapping[key], "store": store["storeEmail"]})
                 
             
