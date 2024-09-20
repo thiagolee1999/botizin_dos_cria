@@ -1,6 +1,7 @@
 name: Run Park Reservation Checker
 
 on:
+  workflow_dispatch:  # Allows manual runs
   schedule:
     - cron: '*/5 * * * *'  # Runs every 30 minutes
 
@@ -21,4 +22,7 @@ jobs:
         run: pip install requests
 
       - name: Run the Python script
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python script.py
