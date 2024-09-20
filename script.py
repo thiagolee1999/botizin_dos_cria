@@ -1,6 +1,5 @@
 import requests
 import time
-import schedule
 import os
 
 # API endpoint and parameters
