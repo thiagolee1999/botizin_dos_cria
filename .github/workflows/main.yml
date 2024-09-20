@@ -3,7 +3,7 @@ name: Botzin dos cria
 on:
   workflow_dispatch:  # Allows manual runs
   schedule:
-    - cron: '*/5 * * * *'  # Runs every 5 minutes
+    - cron: '0 * * * *'  # Runs at the start of every hour
 
 jobs:
   run-script:
@@ -27,7 +27,7 @@ jobs:
           CHAT_KEY: ${{ secrets.CHAT_KEY }}
           GROUP_KEY: ${{ secrets.GROUP_KEY }}
         run: |
-          for i in {1..10}
+          for i in {1..120}
           do
             python script.py
             sleep 30  # Wait for 30 seconds between runs
