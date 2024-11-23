@@ -1,0 +1,34 @@
+name: Botzin dos cria -- versao commedy cellar
+
+on:
+  workflow_dispatch:  # Allows manual runs
+  schedule:
+    - cron: '0 * * * *'  # Runs at the start of every hour
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the Python script
+        env:
+          BOT_KEY: ${{ secrets.BOT_KEY }}
+          CHAT_KEY: ${{ secrets.CHAT_KEY }}
+          GROUP_KEY: ${{ secrets.GROUP_KEY }}
+        run: |
+          for i in {1..60}
+          do
+            python script2.py
+            sleep 60  # Wait for 60 seconds between runs
+          done
