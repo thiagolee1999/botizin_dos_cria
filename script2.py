@@ -88,10 +88,6 @@ def check_reservation():
                         f"Current Guest Count: {current_count}"
                     )
                     send_telegram_message(message)
-                else:
-                    print(f"No availability for {show_time}: {current_count}/{max_capacity}")
-        else:
-            print("No matching shows found.")
         
     except Exception as e:
         print(f"Error during reservation check: {e}")
