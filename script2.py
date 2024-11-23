@@ -37,7 +37,7 @@ json_data = {
     'date': '2024-11-22',
 }
 
-target_times = {"22:45:00", "23:00:00", "23:30:00", "00:55:00"}  # Add times you're interested in
+target_times = {"22:45:00", "23:00:00", "23:30:00"}  # Add times you're interested in
 
 # Telegram Bot Details (Replace with your values)
 TELEGRAM_BOT_TOKEN = os.getenv('BOT_KEY')
