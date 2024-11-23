@@ -61,44 +61,40 @@ def send_telegram_message(message):
 
 # Main function to check reservation and notify
 def check_reservation():
-    while True:
-        try:
-            response = requests.post(
-                'https://www.comedycellar.com/reservations/api/getShows',
-                cookies=cookies,
-                headers=headers,
-                json=json_data,
-            )
-            response.raise_for_status()
-            shows_data = response.json()
-            shows = shows_data.get("data", {}).get("showInfo", {}).get("shows", [])
+    try:
+        response = requests.post(
+            'https://www.comedycellar.com/reservations/api/getShows',
+            cookies=cookies,
+            headers=headers,
+            json=json_data,
+        )
+        response.raise_for_status()
+        shows_data = response.json()
+        shows = shows_data.get("data", {}).get("showInfo", {}).get("shows", [])
 
-            # Check each show for a match with target times
-            for show in shows:
-                show_time = show.get("time")
-                if show_time in target_times:
-                    max_capacity = show.get("max", 0)
-                    current_count = show.get("totalGuests", 0)
-                    description = show.get("description")
-                    
-                    # Check if current count is less than max capacity
-                    if current_count < max_capacity:
-                        message = (
-                            f"Reservation available for {description}!\n"
-                            f"Max Capacity: {max_capacity}\n"
-                            f"Current Guest Count: {current_count}"
-                        )
-                        send_telegram_message(message)
-                    else:
-                        print(f"No availability for {show_time}: {current_count}/{max_capacity}")
-            else:
-                print("No matching shows found.")
-            
-        except Exception as e:
-            print(f"Error during reservation check: {e}")
-
-        # Wait for 2 minutes before the next attempt
-        time.sleep(120)
+        # Check each show for a match with target times
+        for show in shows:
+            show_time = show.get("time")
+            if show_time in target_times:
+                max_capacity = show.get("max", 0)
+                current_count = show.get("totalGuests", 0)
+                description = show.get("description")
+                
+                # Check if current count is less than max capacity
+                if current_count < max_capacity:
+                    message = (
+                        f"Reservation available for {description}!\n"
+                        f"Max Capacity: {max_capacity}\n"
+                        f"Current Guest Count: {current_count}"
+                    )
+                    send_telegram_message(message)
+                else:
+                    print(f"No availability for {show_time}: {current_count}/{max_capacity}")
+        else:
+            print("No matching shows found.")
+        
+    except Exception as e:
+        print(f"Error during reservation check: {e}")
 
 # Run the script
 check_reservation()
