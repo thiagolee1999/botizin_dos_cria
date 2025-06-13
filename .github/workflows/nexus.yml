@@ -27,8 +27,8 @@ jobs:
           CHAT_KEY: ${{ secrets.CHAT_KEY }}
           GROUP_KEY: ${{ secrets.GROUP_KEY }}
         run: |
-          for i in {1..120}
+          for i in {1..60}
           do
             python nexus.py
-            sleep 30  # Wait for 30 seconds between runs
+            sleep 60  # Wait for 30 seconds between runs
           done
