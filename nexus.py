@@ -11,7 +11,7 @@ headers = {
 
 # Telegram bot config
 bot_token = os.getenv('BOT_KEY')
-chat_id = os.getenv('GROUP_KEY')
+chat_id = os.getenv('CHAT_KEY')
 
 # Blaine, WA location ID (you may need to adjust this based on the actual ID from the API)
 BLAINE_LOCATION_ID = [5020,16764,5021]  # This is a placeholder, you'll need to verify the correct ID
