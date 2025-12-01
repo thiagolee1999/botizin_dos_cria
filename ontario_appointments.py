@@ -1,5 +1,4 @@
 import requests
-import time
 import os
 from datetime import datetime
 from dotenv import load_dotenv
@@ -106,9 +105,5 @@ def check_appointments():
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    print("Starting Ontario appointment checker...")
-    
-    while True:
-        check_appointments()
-        time.sleep(120)  # Wait 2 minutes (120 seconds) before next check
+    check_appointments()
 

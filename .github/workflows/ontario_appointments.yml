@@ -8,7 +8,7 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # 6 hours max (GitHub Actions limit)
+    timeout-minutes: 120 # 2 hours
 
     steps:
       - name: Checkout repository
@@ -26,4 +26,9 @@ jobs:
         env:
           BOT_KEY: ${{ secrets.BOT_KEY }}
           CHAT_KEY: ${{ secrets.CHAT_KEY }}
-        run: python ontario_appointments.py
+        run: |
+          for i in {1..120}
+          do
+            python ontario_appointments.py
+            sleep 60  # Wait 60 seconds (1 minute) between runs
+          done
