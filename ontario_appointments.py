@@ -22,16 +22,19 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 }
 
-payload = {
-    "locationCode": "918",
-    "startDate": "2025-12-01",
-    "numberOfDays": "40",
-    "purposeCodeList": "M21,M68"
-}
-
 # Target date threshold - notify if any dates are before this
-TARGET_DATE = "2026-01-01"
+TARGET_DATE = "2025-12-15"
 target_date = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
+
+def get_payload():
+    """Generate payload with current date as startDate."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    return {
+        "locationCode": "918",
+        "startDate": today,
+        "numberOfDays": "40",
+        "purposeCodeList": "M21,M68"
+    }
 
 # Telegram bot config
 bot_token = os.getenv('BOT_KEY')
@@ -53,6 +56,8 @@ def send_telegram_message(message):
 
 def check_appointments():
     try:
+        payload = get_payload()
+        print(f"Checking appointments starting from {payload['startDate']}...")
         response = requests.post(endpoint, headers=headers, json=payload)
         
         # Better error handling to see what's happening
