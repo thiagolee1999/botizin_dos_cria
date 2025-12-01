@@ -30,7 +30,7 @@ payload = {
 }
 
 # Target date threshold - notify if any dates are before this
-TARGET_DATE = "2025-12-15"
+TARGET_DATE = "2026-01-01"
 target_date = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
 
 # Telegram bot config
