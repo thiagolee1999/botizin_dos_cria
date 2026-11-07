@@ -34,7 +34,7 @@ BUY_URL = "https://www.apple.com/ca/shop/buy-iphone/iphone-duo"
 PARTS = {
     "MK244VC/A": ("Star White", "7.6-inch-display-256gb-star-white"),
     "MK254VC/A": ("Night Sky", "7.6-inch-display-256gb-night-sky"),
-    "MMJX54VC/A": ("Test", "Test"),
+    "MJX54VC/A": ("Test", "Test"),  # TEMP: iPhone 18 Pro Max, known in stock — remove after Telegram test
 }
 
 # Exact Apple retail store numbers, to avoid matching unintended GTA locations.
