@@ -44,7 +44,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONUNBUFFERED: "1"
         run: |
-          python3 iphone_telegram_monitor.py \
+          python3 iphone_telegram_monitor_github.py \
             --interval 60 \
             --checks 60 \
             --state-file .monitor/state.json
