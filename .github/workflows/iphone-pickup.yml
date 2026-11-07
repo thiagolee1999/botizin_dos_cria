@@ -3,7 +3,7 @@ name: iPhone pickup monitor
 on:
   workflow_dispatch:
   schedule:
-    - cron: "13 * * * *"
+    - cron: "0 * * * *"
 
 permissions:
   contents: read
