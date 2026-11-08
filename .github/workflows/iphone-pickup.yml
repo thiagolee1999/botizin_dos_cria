@@ -1,12 +1,14 @@
 name: iPhone pickup monitor
 
+# Runs indefinitely by re-dispatching itself at the end of each run.
+# Start it once with "Run workflow". To stop: cancel the running job
+# (a cancelled run does not re-dispatch) or disable the workflow.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 * * * *"
 
 permissions:
   contents: read
+  actions: write # needed to dispatch the next run
 
 concurrency:
   group: iphone-pickup-monitor
@@ -15,7 +17,7 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 80
 
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +41,8 @@ jobs:
           fi
 
       - name: Monitor iPhone availability
+        id: monitor
+        timeout-minutes: 65 # fail this step (not the job) so the next run still gets dispatched
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -55,3 +59,16 @@ jobs:
         with:
           path: .monitor/state.json
           key: iphone-pickup-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Re-dispatch unless cancelled or setup failed (e.g. missing secrets),
+      # so a broken config doesn't spin in a tight loop.
+      - name: Dispatch next run
+        if: ${{ !cancelled() && steps.monitor.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ steps.monitor.outcome }}" = "failure" ]; then
+            echo "Monitor failed; waiting 5 minutes before re-dispatching"
+            sleep 300
+          fi
+          gh workflow run iphone-pickup.yml --ref "${{ github.ref_name }}"
