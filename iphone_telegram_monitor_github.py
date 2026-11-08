@@ -4,15 +4,14 @@
 Either colour is acceptable. Python 3.9+, standard library only.
 
 Usage:
-    python3 iphone_telegram_monitor.py --once
-    python3 iphone_telegram_monitor.py --telegram-test
-    python3 iphone_telegram_monitor.py --interval 60 --checks 60 --state-file .monitor/state.json
+    python3 iphone_telegram_monitor_github.py --once
+    python3 iphone_telegram_monitor_github.py --telegram-test
+    python3 iphone_telegram_monitor_github.py --interval 30 --checks 120
 
 Configure Telegram via TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
---checks 60 performs exactly 60 attempts spaced by one minute from start to start,
-then exits; GitHub Actions can launch a fresh job every hour.
---state-file persists successful observations between GitHub Actions runs when
-combined with a cache restore/save. No Telegram credentials are written to disk.
+--checks 120 performs exactly 120 attempts spaced 30 seconds apart (start to
+start), then exits. Every check that finds stock sends an alert, so alerts
+repeat every interval until the stock is gone. Nothing is written to disk.
 """
 
 import argparse
@@ -22,7 +21,6 @@ import re
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -195,7 +193,8 @@ def send_telegram(bot_token, chat_id, message):
     return False
 
 
-def show_results(results, previous, topic, now, telegram_token="", telegram_chat_id=""):
+def show_results(results, topic, now, telegram_token="", telegram_chat_id=""):
+    """Print availability and alert on EVERY check that finds stock."""
     available = [
         (store, part, info) for (store, part), info in results.items()
         if info["available"]
@@ -206,96 +205,34 @@ def show_results(results, previous, topic, now, telegram_token="", telegram_chat
 
     if not available:
         print(f"[{timestamp}] No 256GB iPhone Duo available for pickup at either store.", flush=True)
-        return {}
+        return
 
     best_eta = eta_priority(available[0][2]["quote"], now)
     print(f"[{timestamp}] {len(available)} available option(s) at Yorkdale / Eaton Centre:")
     print("  Earliest Apple-listed pickup options first (same ETA = tie):")
-    current = {}
-    telegram_alerts = []
     for store, part, info in available:
         eta = eta_priority(info["quote"], now)
         label = "FASTEST" if eta == best_eta else "LATER"
         color = PARTS[part][0]
         description = info["quote"].strip() or "Available — exact pickup time not provided"
         url = product_url(part)
-        key = (store, part)
-        current[key] = eta
         print(f"  [{label}] Apple {STORES[store]} | 256GB {color} | {description}")
         print(f"           {url} (select Apple {STORES[store]} at checkout)")
+        send_ntfy(topic, f"IN STOCK: iPhone Duo 256GB {color}, Apple {STORES[store]}. {description}.", url)
+    print("\a", end="", flush=True)
 
-        # Alert on newly available stock, or if Apple's pickup ETA improves.
-        # On initial startup, every available option is considered new.
-        old = previous.get(key)
-        if old is None or eta < old:
-            kind = "IN STOCK" if old is None else "EARLIER PICKUP"
-            message = f"{kind}: iPhone Duo 256GB {color}, Apple {STORES[store]}. {description}."
-            print(f"           ALERT: {kind}")
-            send_ntfy(topic, message, url)
-            telegram_alerts.append((store, part, description, kind, url))
-            print("\a", end="", flush=True)
-
-    if telegram_alerts and telegram_token and telegram_chat_id:
-        # Send one Telegram alert per poll; include all available options in ETA order,
-        # not just the first one that happened to become available.
-        lines = ["📱 iPhone Duo 256GB — pickup alert", ""]
-        changed = {(store, part) for store, part, _, _, _ in telegram_alerts}
+    if telegram_token and telegram_chat_id:
+        # One Telegram message per check listing every available option in ETA order.
+        lines = ["📱 iPhone Duo 256GB — IN STOCK NOW", ""]
         for store, part, info in available:
             color = PARTS[part][0]
             pickup = info["quote"].strip() or "Available (pickup date unspecified)"
-            prefix = "🆕 " if (store, part) in changed else "• "
-            lines.append(f"{prefix}{STORES[store]} — {color} — {pickup}")
+            lines.append(f"• {STORES[store]} — {color} — {pickup}")
             lines.append(product_url(part))
         lines.append("Select the store during Apple checkout. Availability can change.")
-        if not send_telegram(telegram_token, telegram_chat_id, "\n".join(lines)):
-            # Failed deliveries should be retried on the next successful check.
-            # A network timeout could have sent the message, so rare duplicates
-            # remain possible, but silently losing the alert is worse.
-            for store, part, _, _, _ in telegram_alerts:
-                current.pop((store, part), None)
+        if send_telegram(telegram_token, telegram_chat_id, "\n".join(lines)):
+            print("  Telegram alert sent.", flush=True)
     print(flush=True)
-    return current
-
-
-def load_state(filename):
-    """Load last known available options (never credentials) from a JSON file."""
-    if not filename:
-        return {}
-    path = Path(filename)
-    if not path.is_file():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if data.get("version") != 1 or not isinstance(data.get("available"), list):
-            raise ValueError("unrecognized state format")
-        previous = {}
-        for item in data["available"]:
-            store, part, eta = item["store"], item["part"], item["eta"]
-            if store in STORES and part in PARTS and (isinstance(eta, list) and
-                    len(eta) == 2 and all(type(n) is int for n in eta)):
-                previous[(store, part)] = tuple(eta)
-        return previous
-    except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
-        print(f"[WARN] Ignoring unreadable state file ({type(exc).__name__}).", file=sys.stderr)
-        return {}
-
-
-def save_state(filename, previous):
-    """Atomically persist the latest successfully observed stock statuses."""
-    if not filename:
-        return
-    path = Path(filename)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "version": 1,
-        "available": [
-            {"store": store, "part": part, "eta": list(eta)}
-            for (store, part), eta in sorted(previous.items())
-        ],
-    }
-    temp = path.with_name(path.name + ".tmp")
-    temp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    os.replace(temp, path)
 
 
 def main():
@@ -307,8 +244,6 @@ def main():
     parser.add_argument("--ntfy-topic", help="Optional ntfy.sh topic for iPhone push alerts")
     parser.add_argument("--checks", type=int, default=None,
                         help="Run exactly this many inventory checks, then exit (default: unlimited)")
-    parser.add_argument("--state-file",
-                        help="JSON inventory-state file; allows persistence across workflow runs")
     parser.add_argument("--telegram-test", action="store_true",
                         help="Send a Telegram test notification, then exit (no Apple request)")
     args = parser.parse_args()
@@ -338,9 +273,6 @@ def main():
     print("Apple Eaton Centre (R121) OR Apple Yorkdale (R120)")
     print(f"Checking in-store pickup every {args.interval} seconds "
           f"for {total_checks if total_checks else 'unlimited'} attempt(s).\n", flush=True)
-    previous = load_state(args.state_file)
-    if previous:
-        print(f"Restored {len(previous)} previously available option(s).", flush=True)
 
     # Start-to-start cadence; API latency does not accumulate into an extra
     # 60 seconds each cycle, and there is no sleep after the final check.
@@ -353,11 +285,9 @@ def main():
             print(f"Check {attempt}/{total_checks}", flush=True)
         try:
             results = all_target_inventory()
-            previous = show_results(results, previous, args.ntfy_topic, now,
-                                    telegram_token, telegram_chat_id)
-            save_state(args.state_file, previous)
+            show_results(results, args.ntfy_topic, now, telegram_token, telegram_chat_id)
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError) as exc:
-            # Network errors are NOT out of stock. Preserve last successful state.
+            # Network errors are NOT out of stock; just try again next interval.
             print(f"[{now:%Y-%m-%d %H:%M:%S}] CHECK FAILED: {exc}", file=sys.stderr)
             if args.once:
                 return 1

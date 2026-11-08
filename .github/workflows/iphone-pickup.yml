@@ -22,14 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore previous inventory state
-        uses: actions/cache/restore@v4
-        with:
-          path: .monitor/state.json
-          key: iphone-pickup-state-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            iphone-pickup-state-
-
       - name: Check Telegram secrets
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -49,16 +41,8 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           python3 iphone_telegram_monitor_github.py \
-            --interval 60 \
-            --checks 60 \
-            --state-file .monitor/state.json
-
-      - name: Save inventory state
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: .monitor/state.json
-          key: iphone-pickup-state-${{ github.run_id }}-${{ github.run_attempt }}
+            --interval 30 \
+            --checks 120
 
       # Re-dispatch unless cancelled or setup failed (e.g. missing secrets),
       # so a broken config doesn't spin in a tight loop.
