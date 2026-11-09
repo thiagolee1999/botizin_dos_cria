@@ -22,13 +22,16 @@ import os
 import re
 import sys
 import time
-
-# Delay before the next check after 1, 2, 3+ consecutive failures (capped at last).
-FAILURE_BACKOFF = (120, 180)
 from datetime import datetime
+from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+
+# Delay before the next check after 1, 2, 3+ consecutive failures (capped at last).
+FAILURE_BACKOFF = (120, 180)
+# Send one Telegram warning after this many consecutive failed checks.
+DEGRADED_AFTER = 3
 
 API_URL = "https://www.apple.com/ca/shop/retail/pickup-message"
 BUY_URL = "https://www.apple.com/ca/shop/buy-iphone/iphone-duo"
@@ -305,12 +308,19 @@ def main():
                       flush=True)
             failures = 0
             show_results(results, args.ntfy_topic, now, telegram_token, telegram_chat_id)
-        except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError) as exc:
+        except (HTTPError, URLError, HTTPException, TimeoutError, OSError, ValueError,
+                KeyError) as exc:
             # Network errors are NOT out of stock. Back off so a rate limit can clear.
             failures += 1
             print(f"[{now:%Y-%m-%d %H:%M:%S}] CHECK FAILED: {exc}", file=sys.stderr, flush=True)
             if args.once:
                 return 1
+            # Warn once per outage (not on every failure after) that the monitor is blind.
+            if failures == DEGRADED_AFTER and telegram_token and telegram_chat_id:
+                send_telegram(telegram_token, telegram_chat_id,
+                              f"⚠️ iPhone Duo monitor degrading: {failures} checks in a row "
+                              f"failed ({exc}). Not seeing Apple stock right now; retrying "
+                              f"every {FAILURE_BACKOFF[-1] // 60} min. Check Apple manually.")
 
         # Start-to-start cadence: API latency doesn't add to the wait.
         delay = args.interval if not failures else FAILURE_BACKOFF[min(failures, len(FAILURE_BACKOFF)) - 1]
@@ -329,6 +339,7 @@ def main():
         except KeyboardInterrupt:
             print("\nStopped.")
             return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
