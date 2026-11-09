@@ -41,8 +41,8 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           python3 iphone_telegram_monitor_github.py \
-            --interval 30 \
-            --checks 120
+            --interval 60 \
+            --minutes 60
 
       # Re-dispatch unless cancelled or setup failed (e.g. missing secrets),
       # so a broken config doesn't spin in a tight loop.

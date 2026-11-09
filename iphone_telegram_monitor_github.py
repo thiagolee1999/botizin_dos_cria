@@ -6,12 +6,14 @@ Either colour is acceptable. Python 3.9+, standard library only.
 Usage:
     python3 iphone_telegram_monitor_github.py --once
     python3 iphone_telegram_monitor_github.py --telegram-test
-    python3 iphone_telegram_monitor_github.py --interval 30 --checks 120
+    python3 iphone_telegram_monitor_github.py --interval 60 --minutes 60
 
 Configure Telegram via TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
---checks 120 performs exactly 120 attempts spaced 30 seconds apart (start to
-start), then exits. Every check that finds stock sends an alert, so alerts
-repeat every interval until the stock is gone. Nothing is written to disk.
+--minutes 60 keeps checking for 60 minutes, then exits. Checks run every
+--interval seconds (start to start). After a failed check (e.g. Apple's HTTP 541
+rate limit) the next check waits 2 minutes, then 3 minutes per further failure,
+and returns to --interval after a success. Every check that finds stock sends an
+alert, so alerts repeat until the stock is gone. Nothing is written to disk.
 """
 
 import argparse
@@ -20,6 +22,9 @@ import os
 import re
 import sys
 import time
+
+# Delay before the next check after 1, 2, 3+ consecutive failures (capped at last).
+FAILURE_BACKOFF = (120, 180)
 from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -239,11 +244,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--once", action="store_true", help="Check once and exit")
-    parser.add_argument("--interval", type=int, default=30,
-                        help="Seconds between requests (default/minimum 30)")
+    parser.add_argument("--interval", type=int, default=60,
+                        help="Seconds between requests (default 60, minimum 30)")
     parser.add_argument("--ntfy-topic", help="Optional ntfy.sh topic for iPhone push alerts")
     parser.add_argument("--checks", type=int, default=None,
-                        help="Run exactly this many inventory checks, then exit (default: unlimited)")
+                        help="Run at most this many inventory checks, then exit (default: unlimited)")
+    parser.add_argument("--minutes", type=float, default=None,
+                        help="Keep checking for this many minutes, then exit (default: unlimited)")
     parser.add_argument("--telegram-test", action="store_true",
                         help="Send a Telegram test notification, then exit (no Apple request)")
     args = parser.parse_args()
@@ -253,6 +260,8 @@ def main():
         parser.error("--checks must be at least 1")
     if args.once and args.checks not in (None, 1):
         parser.error("--once cannot be combined with --checks > 1")
+    if args.minutes is not None and args.minutes <= 0:
+        parser.error("--minutes must be positive")
 
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
@@ -269,39 +278,57 @@ def main():
         return 1
 
     total_checks = 1 if args.once else args.checks
+    limits = []
+    if total_checks:
+        limits.append(f"{total_checks} check(s)")
+    if args.minutes and not args.once:
+        limits.append(f"{args.minutes:g} minute(s)")
     print("iPhone Duo 256GB | Star White OR Night Sky")
     print("Apple Eaton Centre (R121) OR Apple Yorkdale (R120)")
-    print(f"Checking in-store pickup every {args.interval} seconds "
-          f"for {total_checks if total_checks else 'unlimited'} attempt(s).\n", flush=True)
+    print(f"Checking in-store pickup every {args.interval} seconds for "
+          f"{' or '.join(limits) or 'unlimited time'}; after failures waits "
+          f"{' then '.join(f'{d // 60} min' for d in FAILURE_BACKOFF)} (max).\n", flush=True)
 
-    # Start-to-start cadence; API latency does not accumulate into an extra
-    # 60 seconds each cycle, and there is no sleep after the final check.
     started_at = time.monotonic()
+    stop_at = started_at + args.minutes * 60 if args.minutes and not args.once else None
     attempt = 0
-    while total_checks is None or attempt < total_checks:
+    failures = 0  # consecutive failed checks
+    while True:
         attempt += 1
+        check_started = time.monotonic()
         now = datetime.now().astimezone()
-        if total_checks:
-            print(f"Check {attempt}/{total_checks}", flush=True)
+        print(f"Check {attempt}" + (f"/{total_checks}" if total_checks else ""), flush=True)
         try:
             results = all_target_inventory()
+            if failures:
+                print(f"[{now:%Y-%m-%d %H:%M:%S}] Recovered after {failures} failed check(s).",
+                      flush=True)
+            failures = 0
             show_results(results, args.ntfy_topic, now, telegram_token, telegram_chat_id)
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError) as exc:
-            # Network errors are NOT out of stock; just try again next interval.
-            print(f"[{now:%Y-%m-%d %H:%M:%S}] CHECK FAILED: {exc}", file=sys.stderr)
+            # Network errors are NOT out of stock. Back off so a rate limit can clear.
+            failures += 1
+            print(f"[{now:%Y-%m-%d %H:%M:%S}] CHECK FAILED: {exc}", file=sys.stderr, flush=True)
             if args.once:
                 return 1
+
+        # Start-to-start cadence: API latency doesn't add to the wait.
+        delay = args.interval if not failures else FAILURE_BACKOFF[min(failures, len(FAILURE_BACKOFF)) - 1]
+        next_at = check_started + delay
         if total_checks is not None and attempt >= total_checks:
             print(f"Completed {attempt} checks; exiting normally.", flush=True)
             return 0
+        if stop_at is not None and next_at >= stop_at:
+            print(f"Completed {attempt} checks in {(time.monotonic() - started_at) / 60:.1f} "
+                  f"minutes; exiting normally.", flush=True)
+            return 0
+        if failures:
+            print(f"  Backing off: next check in {delay // 60} min.", file=sys.stderr, flush=True)
         try:
-            deadline = started_at + attempt * args.interval
-            time.sleep(max(0, deadline - time.monotonic()))
+            time.sleep(max(0, next_at - time.monotonic()))
         except KeyboardInterrupt:
             print("\nStopped.")
             return 0
-    return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
